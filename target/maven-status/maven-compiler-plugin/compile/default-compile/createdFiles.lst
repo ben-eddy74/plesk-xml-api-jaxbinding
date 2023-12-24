@@ -1,0 +1,7 @@
+plesk\xml\api\bindings\entity\SchemaBinding.class
+plesk\xml\api\bindings\App.class
+plesk\xml\api\bindings\entity\NodeBinding.class
+plesk\xml\api\bindings\entity\package-info.class
+plesk\xml\api\bindings\App$1.class
+plesk\xml\api\bindings\entity\PropertyBinding.class
+plesk\xml\api\bindings\entity\RootBindings.class
