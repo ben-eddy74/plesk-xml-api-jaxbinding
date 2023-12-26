@@ -12,5 +12,11 @@ public class NodeBinding {
 
     
     @XmlElement(name = "property", namespace = "https://jakarta.ee/xml/ns/jaxb")
-    public List<PropertyBinding> bindings;
+    public List<PropertyBinding> propertybindings;
+    
+    @XmlElement(name = "factoryMethod", namespace = "https://jakarta.ee/xml/ns/jaxb")
+    public List<FactoryMethodBinding> factorymethodsbindings;
+    
+    @XmlElement(name = "class", namespace = "https://jakarta.ee/xml/ns/jaxb")
+    public List<ClassBinding> classbindings;
 }

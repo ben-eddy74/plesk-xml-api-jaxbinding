@@ -1,120 +1,135 @@
 package plesk.xml.api.bindings;
 
-import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBException;
-import jakarta.xml.bind.Marshaller;
 import jakarta.xml.bind.PropertyException;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Iterator;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.xml.namespace.NamespaceContext;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathExpressionException;
-import javax.xml.xpath.XPathFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
+import plesk.xml.api.bindings.control.DocManager;
+import plesk.xml.api.bindings.entity.ClassBinding;
+import plesk.xml.api.bindings.entity.FactoryMethodBinding;
 import plesk.xml.api.bindings.entity.NodeBinding;
 import plesk.xml.api.bindings.entity.PropertyBinding;
 import plesk.xml.api.bindings.entity.RootBindings;
 import plesk.xml.api.bindings.entity.SchemaBinding;
 
-/**
- * Hello world!
- *
- */
 public class App {
 
     public static void main(String[] args) throws IOException, PropertyException, JAXBException {
-        System.out.println("Hello World!");
+        System.out.println("Generate JAXB Binding files for Plesk XML API");
 
-        DocumentBuilderFactory docfactory = DocumentBuilderFactory.newInstance();
-        docfactory.setNamespaceAware(true);
+        if(args.length != 1){
+            System.out.println("Path to folder with Plesk schema files is not provided.");
+            System.exit(1);
+        }
 
-        XPathFactory xpathfactory = XPathFactory.newDefaultInstance();
-        XPath xpath = xpathfactory.newXPath();
-        xpath.setNamespaceContext(new NamespaceContext() {
-            @Override
-            public String getNamespaceURI(String prefix) {
-                return switch (prefix) {
-                    case "jaxb" ->
-                        "https://jakarta.ee/xml/ns/jaxb";
-                    case "xs" ->
-                        "http://www.w3.org/2001/XMLSchema";
-                    default ->
-                        "";
-                };
-            }
+        String xsdfolder = args[0];
+        
+        if(!Files.isDirectory(Path.of(xsdfolder))){
+            System.out.println("Unable to access folder " + xsdfolder);
+            System.exit(2);
+        }
 
-            @Override
-            public String getPrefix(String namespaceURI) {
-                throw new UnsupportedOperationException("Not supported yet."); // Generated from nbfs://nbhost/SystemFileSystem/Templates/Classes/Code/GeneratedMethodBody
-            }
+        List<String> xsdfiles = List.of("agent_input.xsd", "agent_output.xsd");
 
-            @Override
-            public Iterator<String> getPrefixes(String namespaceURI) {
-                throw new UnsupportedOperationException("Not supported yet."); // Generated from nbfs://nbhost/SystemFileSystem/Templates/Classes/Code/GeneratedMethodBody
+        xsdfiles.forEach(f -> {
+            if(!Files.exists(Path.of(xsdfolder, f))){
+                System.out.println("Unable to find %s in %s".formatted(f, xsdfolder));
+                System.exit(3);
             }
         });
-        String xsdfolder = "C:\\Temp\\Plesk\\1.6.9.1\\";
-        String expression = "//xs:complexType[xs:choice/xs:element[@name='add']]";
+        
+        DocManager docmgr = new DocManager();
 
-        RootBindings root = new RootBindings();
-        root.version = "3.0";
+        String includexpath = "//xs:include";
+        String choicexpath = "//xs:complexType[xs:choice/xs:element[@name='add']]";
 
-        Files.list(Paths.get(xsdfolder)).forEach(path -> {
+        for (String xsdfile : xsdfiles) {
+            
+            System.out.println("Processing " + xsdfile);
+            
+            Document agent = docmgr.fromFile(Path.of(xsdfolder, xsdfile));
+            NodeList imports = docmgr.fromXPath(agent, includexpath);
 
-            if (Files.isDirectory(path)) {
-                return;
-            }
+            RootBindings root = new RootBindings();
+            root.version = "3.0";
 
-            try {
-                Document doc = docfactory.newDocumentBuilder().parse(path.toFile());
+            for (int i = 0; i < imports.getLength(); i++) {
 
-                NodeList nodeList = (NodeList) xpath.compile(expression).evaluate(doc, XPathConstants.NODESET);
+                String importfile = imports.item(i).getAttributes().getNamedItem("schemaLocation").getNodeValue();
+                System.out.println("Processing " + importfile);
+
+                Document doc = docmgr.fromFile(Path.of(xsdfolder, importfile));
+                NodeList choiceElements = docmgr.fromXPath(doc, choicexpath);
 
                 SchemaBinding schemabinding = new SchemaBinding();
-                schemabinding.schemafile = path.getFileName().toString();
+                schemabinding.schemafile = importfile;
 
-                System.out.println(nodeList.getLength());
-                for (int i = 0; i < nodeList.getLength(); i++) {
+                for (int x = 0; x < choiceElements.getLength(); x++) {
 
-                    if (nodeList.item(i).getAttributes().getLength() > 0) {
+                    if (choiceElements.item(x).getAttributes().getLength() > 0) {
                         NodeBinding nodebinding = new NodeBinding();
-                        nodebinding.node = "//%s[@name='%s']/xs:choice".formatted(
-                                nodeList.item(i).getNodeName(),
-                                nodeList.item(i).getAttributes().item(0).getTextContent()
+                        nodebinding.node = "//%s[@name='%s']/xs:choice".formatted(choiceElements.item(x).getNodeName(),
+                                choiceElements.item(x).getAttributes().item(0).getTextContent()
                         );
                         schemabinding.nodebindings.add(nodebinding);
 
                         PropertyBinding property = new PropertyBinding();
                         property.propertyname = "operations";
-                        nodebinding.bindings = List.of(property);
+                        nodebinding.propertybindings = List.of(property);
                     }
                 }
 
-                if(!schemabinding.nodebindings.isEmpty()){
+                // Fix collision of ProtectedDirLocation
+                if(importfile.equals("protected_dir.xsd")){
+                    NodeBinding protectedDirLocation = new NodeBinding();
+                    protectedDirLocation.node = "//xs:complexType[@name='ProtectedDirLocation']";
+                    schemabinding.nodebindings.add(protectedDirLocation);
+                    
+                    FactoryMethodBinding factoryMethod = new FactoryMethodBinding();
+                    factoryMethod.factoryMethodName = "ProtectedDirLocationType";
+                    protectedDirLocation.factorymethodsbindings = List.of(factoryMethod);
+                }
+                
+                // Fix collision of InitialSetupType
+                if(importfile.equals("server_output.xsd")){
+                    NodeBinding initialSetupType = new NodeBinding();
+                    initialSetupType.node = "//xs:complexType[@name='InitialSetupType']";
+                    schemabinding.nodebindings.add(initialSetupType);
+                    
+                    ClassBinding classBinding = new ClassBinding();
+                    classBinding.className = "InitialServerSetupType";
+                    initialSetupType.classbindings = List.of(classBinding);
+                }
+                
+                if (!schemabinding.nodebindings.isEmpty()) {
                     root.schemabindings.add(schemabinding);
                 }
-            } catch (SAXException | IOException | XPathExpressionException | ParserConfigurationException ex) {
+            }
+
+            String xjb = "%s%s.xjb".formatted(xsdfolder, xsdfile);
+            try (FileOutputStream outputstream = new FileOutputStream(xjb)){
+                String xml = docmgr.Stringify(root);
+                outputstream.write(xml.getBytes(), 0, xml.length());
+                System.out.println("Generated " + xjb);
+            } catch(Exception ex){
                 Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
             }
+        }
+
+        /*
+        
+
+
         });
 
-        JAXBContext context = JAXBContext.newInstance(RootBindings.class);
-        Marshaller marshaller = context.createMarshaller();
-        marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
-        StringWriter result = new StringWriter();
-        marshaller.marshal(root, result);
-        System.out.println(result.toString());
-
+        System.out.println(docmgr.Stringify(root));
+         */
     }
 }
