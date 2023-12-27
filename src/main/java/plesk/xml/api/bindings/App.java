@@ -113,11 +113,12 @@ public class App {
                 }
             }
 
-            String xjb = "%s%s.xjb".formatted(xsdfolder, xsdfile);
-            try (FileOutputStream outputstream = new FileOutputStream(xjb)){
+            Path outputfile = Path.of(xsdfolder, "%s.xjb".formatted(xsdfile));
+
+            try (FileOutputStream outputstream = new FileOutputStream(outputfile.toString())){
                 String xml = docmgr.Stringify(root);
                 outputstream.write(xml.getBytes(), 0, xml.length());
-                System.out.println("Generated " + xjb);
+                System.out.println("Generated " + outputfile.toString());
             } catch(Exception ex){
                 Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
             }
