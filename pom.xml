@@ -6,7 +6,7 @@
 
     <groupId>ben-eddy74</groupId>
     <artifactId>plesk-xml-api-jaxbindings</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0</version>
 
     <name>jaxbinding</name>
   
