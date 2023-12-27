@@ -48,8 +48,8 @@ public class App {
         DocManager docmgr = new DocManager();
 
         String includexpath = "//xs:include";
-        String choicexpath = "//xs:complexType[xs:choice/xs:element[@name='add']]";
-
+        String choicexpath = "/xs:schema/xs:complexType[xs:choice and not(contains(@name, 'Filter'))]";
+        
         for (String xsdfile : xsdfiles) {
             
             System.out.println("Processing " + xsdfile);
@@ -60,6 +60,24 @@ public class App {
             RootBindings root = new RootBindings();
             root.version = "3.0";
 
+            // Add binding for agent operators
+            SchemaBinding agentschemabinding = new SchemaBinding();
+            agentschemabinding.schemafile = xsdfile;
+            root.schemabindings.add(agentschemabinding);
+            
+            NodeBinding agentnodebinding = new NodeBinding();
+            if(xsdfile.equals("agent_input.xsd")){
+                agentnodebinding.node = "/xs:schema/xs:element/xs:complexType/xs:complexContent/xs:extension/xs:sequence[xs:choice]";
+            } else {
+                agentnodebinding.node = "/xs:schema/xs:complexType/xs:sequence/xs:choice[xs:choice]";
+            }
+            agentschemabinding.nodebindings = List.of(agentnodebinding);
+            
+            PropertyBinding agentoperators = new PropertyBinding();
+            agentoperators.propertyname = "operators";
+            agentnodebinding.propertybindings = List.of(agentoperators);
+            
+            // Add bindings for import operations
             for (int i = 0; i < imports.getLength(); i++) {
 
                 String importfile = imports.item(i).getAttributes().getNamedItem("schemaLocation").getNodeValue();
@@ -74,6 +92,7 @@ public class App {
                 for (int x = 0; x < choiceElements.getLength(); x++) {
 
                     if (choiceElements.item(x).getAttributes().getLength() > 0) {
+                        System.out.println(choiceElements.item(x).getAttributes().item(0).getTextContent());
                         NodeBinding nodebinding = new NodeBinding();
                         nodebinding.node = "//%s[@name='%s']/xs:choice".formatted(choiceElements.item(x).getNodeName(),
                                 choiceElements.item(x).getAttributes().item(0).getTextContent()
