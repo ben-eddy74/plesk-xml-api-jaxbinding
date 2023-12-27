@@ -42,7 +42,7 @@ public class AppTest
 
         PropertyBinding property = new PropertyBinding();
         property.propertyname = "operations";
-        nodebinding.bindings = List.of(property);
+        nodebinding.propertybindings = List.of(property);
 
         JAXBContext context = JAXBContext.newInstance(RootBindings.class);
         Marshaller marshaller = context.createMarshaller();
